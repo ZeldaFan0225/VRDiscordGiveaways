@@ -1,5 +1,5 @@
 import SuperMap from "@thunder04/supermap";
-import { ActionRowData, AttachmentBuilder, Client, ClientOptions, Collection, EmbedBuilder, Message, MessageActionRowComponentData, Snowflake } from "discord.js";
+import { ActionRowData, Attachment, AttachmentBuilder, Client, ClientOptions, Collection, EmbedBuilder, Message, MessageActionRowComponentData, Snowflake } from "discord.js";
 import { Button } from "./button";
 import { Command } from "./command";
 
@@ -18,7 +18,7 @@ export class GiveawayClient extends Client{
         this.blacklisted = []
     }
 
-    async log(message: string | EmbedBuilder | EmbedBuilder[], files?: AttachmentBuilder[], components?: ActionRowData<MessageActionRowComponentData>[]): Promise<Message | null> {
+    async log(message: string | EmbedBuilder | EmbedBuilder[], files?: (AttachmentBuilder | Attachment)[], components?: ActionRowData<MessageActionRowComponentData>[]): Promise<Message | null> {
         if(!process.env["GUILD_ID"] || !process.env["LOG_CHANNEL_ID"]) return null;
         let guild = await this.guilds.fetch(process.env["GUILD_ID"]!)
         return await guild.channels.fetch(process.env["LOG_CHANNEL_ID"]!).then(async c => {

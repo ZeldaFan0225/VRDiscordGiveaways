@@ -1,4 +1,4 @@
-import { ApplicationCommand, ChannelType, CommandInteraction, GuildMember, IntentsBitField } from "discord.js"
+import { ApplicationCommand, Attachment, ChannelType, CommandInteraction, ComponentType, GuildMember, IntentsBitField, Partials } from "discord.js"
 import { readFileSync, existsSync, readdirSync } from "fs"
 import { GiveawayClient } from "./classes/client"
 import { CommandContext } from "./classes/commandContext"
@@ -24,8 +24,11 @@ const token = process.env["DISCORD_TOKEN"]
 
 const client = new GiveawayClient({
     intents: new IntentsBitField([
-        "Guilds"
-])})
+        "Guilds",
+        "DirectMessages"
+    ]),
+    partials: [Partials.Channel, Partials.Message]
+})
 
 
 let connection = new pg.Pool({
@@ -54,10 +57,10 @@ const keepAlive = async () => {
     //await connection.query("SELECT * FROM giveaways LIMIT 1").then(console.log).catch(() => null)
     //let res = await connection.query("DROP TABLE giveaways")
     //console.log(await connection.query("ALTER TABLE giveaways ADD name VARCHAR(1000) NOT NULL DEFAULT ''"))
-    //console.log(await connection.query("ALTER TABLE giveaways ADD prize_description VARCHAR(1000) NOT NULL DEFAULT ''"))
+    //console.log(await connection.query("ALTER TABLE freekeys ADD proof_url text"))
     await connection.query("CREATE TABLE IF NOT EXISTS giveaways (id varchar(21) not null primary key, duration bigint not null, users text[] not null default '{}', won_users text[] default '{}', winners int not null, channel_id varchar(21) not null, rolled boolean not null, name VARCHAR(1000) NOT NULL DEFAULT '', prize_description VARCHAR(1000) NOT NULL DEFAULT '')")
     await connection.query("CREATE TABLE IF NOT EXISTS prizes (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), changed bigint)")
-    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null)")
+    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text)")
 }
 
 const giveawayController = async () => {
@@ -107,4 +110,78 @@ client.on("interactionCreate", async (interaction): Promise<any> => {
 .on("ready", async () => {
     console.log(`Bot is ready - Logged in as ${client.user?.username}`)
     await client.application?.commands.set(client.commands.map(c => c.command), process.env["GUILD_ID"]!).catch(console.error)
+})
+
+
+.on("messageCreate", async (message) => {
+    if(message.channel.type === ChannelType.DM) {
+        const possible = await connection.query("SELECT * FROM freekeys WHERE user_id=$1 AND proof_url IS NULL", [message.author.id]).catch(console.error)
+        if(!possible?.rowCount) return;
+        if(!message.attachments.first()?.contentType?.startsWith("image")) {
+            await message.reply({content: "Please send an image as proof."})
+            return;
+        }
+        if(message.attachments.size !== 1) {
+            await message.reply({content: "Please only upload one image."})
+            return;
+        }
+
+        if(possible.rowCount === 1) {
+            await saveProofSubmission(possible.rows[0].id, possible.rows[0].channel_id, message.attachments.first()!)
+            return;
+        }
+
+        const components = []
+        const ids = possible.rows.map(r => r.id).slice()
+        if(ids.length > 125) {
+            await message.reply({content: "There are too many pending review proof submissions."})
+            return;
+        }
+
+        let ind = 0;
+
+        while(ids.length) {
+            components.push({
+                type: 1,
+                components: [{
+                    type: 3,
+                    options: ids.splice(0, 25).map(r => ({
+                        label: `Handout ${++ind}`,
+                        value: `${r}`
+                    })).slice(0, 25),
+                    placeholder: "Select a handout",
+                    customId: `select_${ind}`
+                }]
+            })
+        }
+
+        const msg = await message.reply({
+            content: `Please select the handout you want to submit proof for\n${possible.rows.map((r, i) => `[Handout ${i+1}](https://discord.com/channels/${process.env["GUILD_ID"]}/${r.channel_id}/${r.id})`).join("\n")}`,
+            components
+        })
+
+        const selectinteraction = await msg.awaitMessageComponent({time: 1000 * 60 * 15, componentType: ComponentType.StringSelect}).catch(console.error)
+
+        if(!selectinteraction?.values[0]) {
+            await msg.edit({content: "Prompt timed out, please send again.", components: []})
+            return;
+        }
+
+        selectinteraction?.deferUpdate()
+        selectinteraction.deleteReply()
+
+        const prize = possible.rows.find(r => r.id === selectinteraction.values[0])
+
+        await saveProofSubmission(prize.id, prize.channel_id, message.attachments.first()!)
+
+        async function saveProofSubmission(id: string, channel_id: string, attachment: Attachment) {
+            const save = await connection.query("UPDATE freekeys SET proof_url=$1 WHERE id=$2 AND user_id=$3", [attachment.url.split("?")[0]!, id, message.author.id]).catch(console.error)
+            if(!save?.rowCount) return message.reply({content: "Unable to save proof submission. Please try again later."})
+            await message.reply({
+                content: "Thank you for your submission of proof.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button on the handout message again.",
+                components: [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}]
+            })
+            await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
+        }
+    }
 })
