@@ -31,7 +31,7 @@ export default class Test extends Command {
             let claimed = res.rows.filter(r => r.user_id)
             let unclaimed = res.rows.filter(r => !r.user_id)
 
-            let file = new AttachmentBuilder(Buffer.from(`Unclaimed keys (${unclaimed.length})\n-----------------${"-".repeat((unclaimed.length + "").length)}\n\n${unclaimed.map(r => r.prize).join("\n")}\n\n\nClaimed keys (${claimed.length})\n---------------${"-".repeat((claimed.length + "").length)}\n\n${(await Promise.all(claimed.map(async r => `${!!r.proof_url ? "✅" : "❌"} | ${r.prize} | ${r.user_id} | ${await ctx.client.users.fetch(r.user_id).then(res => res.username).catch(() => "Unknown")} | ${!!r.proof_url ? `SUBMITTED PROOF: ${r.proof_url}` : ""}`))).join("\n")}`), {name: "keys.txt"})
+            let file = new AttachmentBuilder(Buffer.from(`Unclaimed keys (${unclaimed.length})\n-----------------${"-".repeat((unclaimed.length + "").length)}\n\n${unclaimed.map(r => r.prize).join("\n")}\n\n\nClaimed keys (${claimed.length})\n---------------${"-".repeat((claimed.length + "").length)}\n\n${(await Promise.all(claimed.map(async r => `${!!r.proof_url ? "✅" : "❌"} | ${r.prize} | ${r.user_id} | ${await ctx.client.users.fetch(r.user_id).then(res => res.username).catch(() => "Unknown")} | ${!!r.proof_url ? `SUBMITTED PROOF: ${r.proof_url}` : `${r.alert_send ? "Alert sent | " : ""}Days since gotten key: ${(Date.now() - new Date(r.received_at).getTime()) / (1000 * 60 * 60 * 24)}`}`))).join("\n")}`), {name: "keys.txt"})
 
             let embed = new EmbedBuilder()
             .setColor(Colors.Aqua)

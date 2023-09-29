@@ -7,6 +7,7 @@ import { ButtonContext } from "./classes/buttonContext"
 import { syncDB } from "./intervals/syncdb"
 import { determineWinner } from "./intervals/determineWinners"
 import { rerollPrizes } from "./intervals/rerollPrizes"
+import { sendProofReminder } from "./intervals/sendProofReminder"
 
 const RE_INI_KEY_VAL = /^\s*([\w.-]+)\s*=\s*(.*)?\s*$/
 
@@ -58,15 +59,18 @@ const keepAlive = async () => {
     //let res = await connection.query("DROP TABLE giveaways")
     //console.log(await connection.query("ALTER TABLE giveaways ADD name VARCHAR(1000) NOT NULL DEFAULT ''"))
     //console.log(await connection.query("ALTER TABLE freekeys ADD proof_url text"))
+    //console.log(await connection.query("ALTER TABLE freekeys ADD received_at timestamp"))
+    //console.log(await connection.query("ALTER TABLE freekeys ADD alert_send boolean not null default false"))
     await connection.query("CREATE TABLE IF NOT EXISTS giveaways (id varchar(21) not null primary key, duration bigint not null, users text[] not null default '{}', won_users text[] default '{}', winners int not null, channel_id varchar(21) not null, rolled boolean not null, name VARCHAR(1000) NOT NULL DEFAULT '', prize_description VARCHAR(1000) NOT NULL DEFAULT '')")
     await connection.query("CREATE TABLE IF NOT EXISTS prizes (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), changed bigint)")
-    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text)")
+    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text, received_at timestamp, alert_send boolean not null default false)")
 }
 
 const giveawayController = async () => {
     await syncDB(connection, client)
     await determineWinner(connection, client)
     await rerollPrizes(connection, client)
+    await sendProofReminder(connection, client)
 }
 
 client.login(token)
