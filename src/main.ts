@@ -61,9 +61,10 @@ const keepAlive = async () => {
     //console.log(await connection.query("ALTER TABLE freekeys ADD proof_url text"))
     //console.log(await connection.query("ALTER TABLE freekeys ADD received_at timestamp"))
     //console.log(await connection.query("ALTER TABLE freekeys ADD alert_send boolean not null default false"))
+    //console.log(await connection.query("ALTER TABLE freekeys ADD proof_submitted_at timestamp"))
     await connection.query("CREATE TABLE IF NOT EXISTS giveaways (id varchar(21) not null primary key, duration bigint not null, users text[] not null default '{}', won_users text[] default '{}', winners int not null, channel_id varchar(21) not null, rolled boolean not null, name VARCHAR(1000) NOT NULL DEFAULT '', prize_description VARCHAR(1000) NOT NULL DEFAULT '')")
     await connection.query("CREATE TABLE IF NOT EXISTS prizes (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), changed bigint)")
-    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text, received_at timestamp, alert_send boolean not null default false)")
+    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text, received_at timestamp, alert_send boolean not null default false, proof_submitted_at timestamp)")
 }
 
 const giveawayController = async () => {
@@ -119,7 +120,7 @@ client.on("interactionCreate", async (interaction): Promise<any> => {
 
 .on("messageCreate", async (message) => {
     if(message.channel.type === ChannelType.DM) {
-        const possible = await connection.query("SELECT * FROM freekeys WHERE user_id=$1 AND proof_url IS NULL", [message.author.id]).catch(console.error)
+        const possible = await connection.query("SELECT * FROM freekeys WHERE user_id=$1 AND proof_url IS NULL AND received_at IS NOT NULL", [message.author.id]).catch(console.error)
         if(!possible?.rowCount) return;
         if(!message.attachments.first()?.contentType?.startsWith("image")) {
             await message.reply({content: "Please send an image as proof."})
@@ -179,13 +180,14 @@ client.on("interactionCreate", async (interaction): Promise<any> => {
         await saveProofSubmission(prize.id, prize.channel_id, message.attachments.first()!)
 
         async function saveProofSubmission(id: string, channel_id: string, attachment: Attachment) {
-            const save = await connection.query("UPDATE freekeys SET proof_url=$1 WHERE id=$2 AND user_id=$3", [attachment.url.split("?")[0]!, id, message.author.id]).catch(console.error)
+            const logmsg = await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
+            if(!logmsg) return message.reply({content: "Unable to save image. Please try again later."})
+            const save = await connection.query("UPDATE freekeys SET proof_url=$1, proof_submitted_at=CURRENT_TIMESTAMP WHERE id=$2 AND user_id=$3", [logmsg.url, id, message.author.id]).catch(console.error)
             if(!save?.rowCount) return message.reply({content: "Unable to save proof submission. Please try again later."})
             await message.reply({
                 content: "Thank you for your submission of proof.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button on the handout message again.",
                 components: [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}]
             })
-            await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
         }
     }
 })

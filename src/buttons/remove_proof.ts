@@ -16,7 +16,7 @@ export default class Test extends Button {
         const prize = await ctx.sql.query("SELECT * FROM freekeys WHERE id=$1 AND user_id=$2", [id, ctx.interaction.user.id]).catch(console.error)
         if(!prize) return ctx.error("Unable to find proof")
 
-        const confirm = await ctx.sql.query("UPDATE freekeys SET proof_url=NULL WHERE id=$1 AND user_id=$2", [id, ctx.interaction.user.id]).catch(console.error)
+        const confirm = await ctx.sql.query("UPDATE freekeys SET proof_url=NULL, proof_submitted_at=NULL WHERE id=$1 AND user_id=$2", [id, ctx.interaction.user.id]).catch(console.error)
 
         if(!confirm?.rowCount) return ctx.error("Unable to remove proof")
 

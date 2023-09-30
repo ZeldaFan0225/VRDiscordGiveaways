@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { GiveawayClient } from "../classes/client";
 
 export async function sendProofReminder(db: Pool, client: GiveawayClient) {
-    const pending_review = await db.query("SELECT * FROM freekeys WHERE proof_url IS NULL AND NOT alert_send AND received_at IS NOT NULL AND (CURRENT_TIMESTAMP - received_at) > interval '1 minute'").catch(console.error)
+    const pending_review = await db.query("SELECT * FROM freekeys WHERE proof_url IS NULL AND NOT alert_send AND received_at IS NOT NULL AND (CURRENT_TIMESTAMP - received_at) > interval '7 day'").catch(console.error)
 
     if(!pending_review?.rowCount) return;
 

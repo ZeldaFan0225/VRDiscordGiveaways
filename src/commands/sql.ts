@@ -15,8 +15,6 @@ const commandData: ApplicationCommandData = {
     }]
 }
 
-let owner = ["134295609287901184"]
-
 export default class Test extends Command {
     constructor() {
         super(commandData)
@@ -25,7 +23,6 @@ export default class Test extends Command {
         this.description = `Queries the database`
     }
     async run(ctx: CommandContext): Promise<any> {
-        if(!owner.includes(ctx.interaction.user.id)) return ctx.error("You can't use this command")
         let query = ctx.interaction.options.getString("query", true)
         let res = await ctx.sql.query(query).catch(e => e)
         let text = util.inspect(res, {depth: 5})
