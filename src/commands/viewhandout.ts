@@ -31,7 +31,17 @@ export default class Test extends Command {
             let claimed = res.rows.filter(r => r.user_id)
             let unclaimed = res.rows.filter(r => !r.user_id)
 
-            let file = new AttachmentBuilder(Buffer.from(`Unclaimed keys (${unclaimed.length})\n-----------------${"-".repeat((unclaimed.length + "").length)}\n\n${unclaimed.map(r => r.prize).join("\n")}\n\n\nClaimed keys (${claimed.length})\n---------------${"-".repeat((claimed.length + "").length)}\n\n${(await Promise.all(claimed.map(async r => `${!!r.proof_url ? "✅" : "❌"} | ${r.prize} | ${r.user_id} | Key gotten at: ${r.received_at.toISOString()} | Proof submitted at: ${r.proof_submitted_at?.toISOString() || "not yet                 "} | ${await ctx.client.users.fetch(r.user_id).then(res => res.username).catch(() => "Unknown")} | ${!!r.proof_url ? `SUBMITTED PROOF: ${r.proof_url}` : `${r.alert_send ? "Alert sent | " : ""}Days since gotten key: ${(Date.now() - new Date(r.received_at).getTime()) / (1000 * 60 * 60 * 24)}`}`))).join("\n")}`), {name: "keys.txt"})
+            let file = new AttachmentBuilder(Buffer.from(`Unclaimed keys (${unclaimed.length})\n-----------------${"-".repeat((unclaimed.length + "").length)}\n\n${unclaimed.map(r => r.prize).join("\n")}\n\n\nClaimed keys (${claimed.length})\n---------------${"-".repeat((claimed.length + "").length)}\n\n${(await Promise.all(claimed.map(async r => `${!!r.proof_url ? "✅" : "❌"} | ${r.prize} | ${r.user_id} | Key gotten at: ${r.received_at?.toISOString()} | Proof submitted at: ${r.proof_submitted_at?.toISOString() || "not yet                 "} | ${await ctx.client.users.fetch(r.user_id).then(res => res.username).catch(() => "Unknown")} | ${!!r.proof_url ? `SUBMITTED PROOF: ${r.proof_url}` : `${r.alert_send ? "Alert sent | " : ""}Days since gotten key: ${(Date.now() - new Date(r.received_at).getTime()) / (1000 * 60 * 60 * 24)}`}`))).join("\n")}`), {name: "keys.txt"})
+            const csv = new AttachmentBuilder(
+                Buffer.from(
+                    `Key,Proof Submitted,User ID,Username,Key received at,Proof submitted at,Alert Sent
+${unclaimed.map(k => `"${k.prize}","","","","","",""`).join("\n")}
+${await Promise.all(claimed.map(async k => `"${k.prize}","${k.proof_url ? 'yes' : 'no'}","${k.user_id}","${await ctx.client.users.fetch(k.user_id).then(res => res.username).catch(() => "Unknown")}","${k.received_at?.toISOString() || ""}","${k.proof_submitted_at?.toISOString() || ""}","${k.alert_send ? 'yes' : 'no'}"`)).then(res => res.join("\n"))}`
+                ),
+                {
+                    name: "keys.csv"
+                }
+            )
 
             let embed = new EmbedBuilder()
             .setColor(Colors.Aqua)
@@ -42,7 +52,7 @@ export default class Test extends Command {
                 {name: "**Given out**", value: `${res.rows.filter(r => r.user_id).length}/${res.rowCount}`, inline: true}
             ])
             
-            ctx.reply({embeds: [embed], ephemeral: true, files: [file]})
+            ctx.reply({embeds: [embed], ephemeral: true, files: [file, csv]})
         } else {
             let res = await ctx.sql.query(`SELECT * FROM freekeys`)
             let unique = new Collection(res.rows.map(r => ([r.id, r])))
