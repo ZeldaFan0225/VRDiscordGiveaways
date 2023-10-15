@@ -71,7 +71,7 @@ const giveawayController = async () => {
     await syncDB(connection, client)
     await determineWinner(connection, client)
     await rerollPrizes(connection, client)
-    await sendProofReminder(connection, client)
+    if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") await sendProofReminder(connection, client)
 }
 
 client.login(token)
@@ -118,76 +118,78 @@ client.on("interactionCreate", async (interaction): Promise<any> => {
 })
 
 
-.on("messageCreate", async (message) => {
-    if(message.channel.type === ChannelType.DM) {
-        const possible = await connection.query("SELECT * FROM freekeys WHERE user_id=$1 AND proof_url IS NULL AND received_at IS NOT NULL", [message.author.id]).catch(console.error)
-        if(!possible?.rowCount) return;
-        if(!message.attachments.first()?.contentType?.startsWith("image")) {
-            await message.reply({content: "Please send an image as proof."})
-            return;
-        }
-        if(message.attachments.size !== 1) {
-            await message.reply({content: "Please only upload one image."})
-            return;
-        }
-
-        if(possible.rowCount === 1) {
-            await saveProofSubmission(possible.rows[0].id, possible.rows[0].channel_id, message.attachments.first()!)
-            return;
-        }
-
-        const components = []
-        const ids = possible.rows.map(r => r.id).slice()
-        if(ids.length > 125) {
-            await message.reply({content: "There are too many pending review proof submissions."})
-            return;
-        }
-
-        let ind = 0;
-
-        while(ids.length) {
-            components.push({
-                type: 1,
-                components: [{
-                    type: 3,
-                    options: ids.splice(0, 25).map(r => ({
-                        label: `Handout ${++ind}`,
-                        value: `${r}`
-                    })).slice(0, 25),
-                    placeholder: "Select a handout",
-                    customId: `select_${ind}`
-                }]
+if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
+    client.on("messageCreate", async (message) => {
+        if(message.channel.type === ChannelType.DM) {
+            const possible = await connection.query("SELECT * FROM freekeys WHERE user_id=$1 AND proof_url IS NULL AND received_at IS NOT NULL", [message.author.id]).catch(console.error)
+            if(!possible?.rowCount) return;
+            if(!message.attachments.first()?.contentType?.startsWith("image")) {
+                await message.reply({content: "Please send an image as proof."})
+                return;
+            }
+            if(message.attachments.size !== 1) {
+                await message.reply({content: "Please only upload one image."})
+                return;
+            }
+    
+            if(possible.rowCount === 1) {
+                await saveProofSubmission(possible.rows[0].id, possible.rows[0].channel_id, message.attachments.first()!)
+                return;
+            }
+    
+            const components = []
+            const ids = possible.rows.map(r => r.id).slice()
+            if(ids.length > 125) {
+                await message.reply({content: "There are too many pending review proof submissions."})
+                return;
+            }
+    
+            let ind = 0;
+    
+            while(ids.length) {
+                components.push({
+                    type: 1,
+                    components: [{
+                        type: 3,
+                        options: ids.splice(0, 25).map(r => ({
+                            label: `Handout ${++ind}`,
+                            value: `${r}`
+                        })).slice(0, 25),
+                        placeholder: "Select a handout",
+                        customId: `select_${ind}`
+                    }]
+                })
+            }
+    
+            const msg = await message.reply({
+                content: `Please select the handout you want to submit proof for\n${possible.rows.map((r, i) => `[Handout ${i+1}](https://discord.com/channels/${process.env["GUILD_ID"]}/${r.channel_id}/${r.id})`).join("\n")}`,
+                components
             })
+    
+            const selectinteraction = await msg.awaitMessageComponent({time: 1000 * 60 * 15, componentType: ComponentType.StringSelect}).catch(console.error)
+    
+            if(!selectinteraction?.values[0]) {
+                await msg.edit({content: "Prompt timed out, please send again.", components: []})
+                return;
+            }
+    
+            selectinteraction?.deferUpdate()
+            selectinteraction.deleteReply()
+    
+            const prize = possible.rows.find(r => r.id === selectinteraction.values[0])
+    
+            await saveProofSubmission(prize.id, prize.channel_id, message.attachments.first()!)
+    
+            async function saveProofSubmission(id: string, channel_id: string, attachment: Attachment) {
+                const logmsg = await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
+                if(!logmsg) return message.reply({content: "Unable to save image. Please try again later."})
+                const save = await connection.query("UPDATE freekeys SET proof_url=$1, proof_submitted_at=CURRENT_TIMESTAMP WHERE id=$2 AND user_id=$3", [logmsg.url, id, message.author.id]).catch(console.error)
+                if(!save?.rowCount) return message.reply({content: "Unable to save proof submission. Please try again later."})
+                await message.reply({
+                    content: "Thank you for your submission of proof.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button on the handout message again.",
+                    components: [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}]
+                })
+            }
         }
-
-        const msg = await message.reply({
-            content: `Please select the handout you want to submit proof for\n${possible.rows.map((r, i) => `[Handout ${i+1}](https://discord.com/channels/${process.env["GUILD_ID"]}/${r.channel_id}/${r.id})`).join("\n")}`,
-            components
-        })
-
-        const selectinteraction = await msg.awaitMessageComponent({time: 1000 * 60 * 15, componentType: ComponentType.StringSelect}).catch(console.error)
-
-        if(!selectinteraction?.values[0]) {
-            await msg.edit({content: "Prompt timed out, please send again.", components: []})
-            return;
-        }
-
-        selectinteraction?.deferUpdate()
-        selectinteraction.deleteReply()
-
-        const prize = possible.rows.find(r => r.id === selectinteraction.values[0])
-
-        await saveProofSubmission(prize.id, prize.channel_id, message.attachments.first()!)
-
-        async function saveProofSubmission(id: string, channel_id: string, attachment: Attachment) {
-            const logmsg = await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
-            if(!logmsg) return message.reply({content: "Unable to save image. Please try again later."})
-            const save = await connection.query("UPDATE freekeys SET proof_url=$1, proof_submitted_at=CURRENT_TIMESTAMP WHERE id=$2 AND user_id=$3", [logmsg.url, id, message.author.id]).catch(console.error)
-            if(!save?.rowCount) return message.reply({content: "Unable to save proof submission. Please try again later."})
-            await message.reply({
-                content: "Thank you for your submission of proof.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button on the handout message again.",
-                components: [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}]
-            })
-        }
-    }
-})
+    })
+}
