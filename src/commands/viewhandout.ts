@@ -46,7 +46,7 @@ ${await Promise.all(claimed.map(async k => `"${k.prize}","${k.proof_url ? 'yes' 
             let embed = new EmbedBuilder()
             .setColor(Colors.Aqua)
             .setTitle("Handout info:")
-            .setDescription(`[This handout](https://discord.com/channels/${ctx.interaction.guildId}/${res.rows[0].channel_id}/${res.rows[0].id})`)
+            .setDescription(`[${res.rows[0]?.name || "This handout"}](https://discord.com/channels/${ctx.interaction.guildId}/${res.rows[0].channel_id}/${res.rows[0].id})`)
             .addFields([
                 {name: "**ID**", value: id, inline: true},
                 {name: "**Given out**", value: `${res.rows.filter(r => r.user_id).length}/${res.rowCount}`, inline: true}
@@ -57,7 +57,7 @@ ${await Promise.all(claimed.map(async k => `"${k.prize}","${k.proof_url ? 'yes' 
             let res = await ctx.sql.query(`SELECT * FROM freekeys`)
             let unique = new Collection(res.rows.map(r => ([r.id, r])))
             let i = 0;
-            let desc = `${unique.map((r, k) => `**${++i}** [click here](https://discord.com/channels/${ctx.interaction.guildId}/${r.channel_id}/${r.id}) ${res.rows.filter(ro => ro.id === k && ro.user_id).length}/${res.rows.filter(ro => ro.id === k).length} keys given out`).join("\n")}`
+            let desc = `${unique.map((r, k) => `**${++i}** [${r.name || "click here"}](https://discord.com/channels/${ctx.interaction.guildId}/${r.channel_id}/${r.id}) ${res.rows.filter(ro => ro.id === k && ro.user_id).length}/${res.rows.filter(ro => ro.id === k).length} keys given out`).join("\n")}`
 
             if(desc.length > 4000) return ctx.reply({content: "Attached below", files: [new AttachmentBuilder(Buffer.from(desc), {name: "giveaways.txt"})], ephemeral: true})
             let embed = new EmbedBuilder()

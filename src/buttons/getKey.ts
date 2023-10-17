@@ -21,11 +21,11 @@ export default class Test extends Button {
         const prize = prizequery.rows[0]!
         await ctx.sql.query(`UPDATE freekeys SET user_id='${ctx.interaction.user.id}', received_at=CURRENT_TIMESTAMP WHERE prize=$1 AND id='${ctx.interaction.message.id}'`, [prize.prize])
 
-        ctx.log(`${ctx.interaction.user.username} (\`${ctx.interaction.user.id}\`) received key \`${prize.prize}\` from key handout \`${ctx.interaction.message.id}\``, [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${prize.channel_id}/${ctx.interaction.message.id}`}]}])
+        ctx.log(`${ctx.interaction.user.username} (\`${ctx.interaction.user.id}\`) received key \`${prize.prize}\` from key handout ${prize.name || "Unknown"} \`${ctx.interaction.message.id}\``, [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${prize.channel_id}/${ctx.interaction.message.id}`}]}])
         if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] !== "1") return ctx.reply({content: `Here's a key: \`${prize.prize}\``})
         
         const msg = await ctx.interaction.user.send({
-            content: "Please send your proof of review in this chat."
+            content: `Please send your proof of review for ${prize.name || "Unknown"} in this chat.`
         }).catch(console.error)
         ctx.reply({content: `Here's a key: \`${prize.prize}\`${!msg?.id ? '**Make sure to open your direct messages**' : ''}\n\n**Make sure to leave a review and send a screenshot as proof to this bot's direct messages**`, ephemeral: true})
 

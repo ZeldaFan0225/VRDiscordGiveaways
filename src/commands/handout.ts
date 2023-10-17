@@ -21,7 +21,7 @@ const commandData: ApplicationCommandData = {
         type: ApplicationCommandOptionType.String,
         name: "title",
         description: "The title of the handout",
-        required: false
+        required: true
     }]
 }
 
@@ -60,8 +60,8 @@ export default class Test extends Command {
 
         let res = await ctx.interaction.channel?.send({embeds: [embed], components}).catch(() => null)
         if(!res) return ctx.error("Unable to create message")
-        let query = `INSERT INTO freekeys (id, channel_id, prize) VALUES ${prizes.map((_, i) => `($1, $2, $${i+3})`).join(", ")}`
-        ctx.sql.query(query, [res!.id, ctx.interaction.channelId, ...prizes])
+        let query = `INSERT INTO freekeys (id, channel_id, name, prize) VALUES ${prizes.map((_, i) => `($1, $2, $3, $${i+4})`).join(", ")}`
+        ctx.sql.query(query, [res!.id, ctx.interaction.channelId, title?.slice(0, 25), ...prizes])
 
         ctx.reply({content: "Created handout message", ephemeral: true})
     }

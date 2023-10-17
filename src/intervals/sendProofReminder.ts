@@ -10,8 +10,8 @@ export async function sendProofReminder(db: Pool, client: GiveawayClient) {
         const user = await client.users.fetch(key.user_id).catch(() => null)
         if(!user) continue;
         const components = [{type: 1, components: [{type: 2, label: "View Handout", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${key.channel_id}/${key.id}`}]}]
-        await client.log(`${user.username} \`${user.id}\` failed to upload proof of review for the handout \`${key.id}\` within ${process.env["PROOF_REMINDER_DELAY"] || "7 day"}`, [], components)
-        await user.send({content: `You have not uploaded proof of review for the handout \`${key.id}\` within ${process.env["PROOF_REMINDER_DELAY"] || "7 day"}.`, components}).catch(() => null)
+        await client.log(`${user.username} \`${user.id}\` failed to upload proof of review for the handout ${key.name || "Unknown"} \`${key.id}\` within ${process.env["PROOF_REMINDER_DELAY"] || "7 day"}`, [], components)
+        await user.send({content: `You have not uploaded proof of review for the handout ${key.name || "Unknown"} \`${key.id}\` within ${process.env["PROOF_REMINDER_DELAY"] || "7 day"}.`, components}).catch(() => null)
         await db.query(`UPDATE freekeys SET alert_send=true WHERE id='${key.id}' AND user_id='${key.user_id}'`).catch(console.error)
     }
 }

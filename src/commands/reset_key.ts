@@ -36,7 +36,7 @@ export default class Test extends Command {
         const res = await ctx.sql.query(`DELETE FROM freekeys WHERE user_id=$1 AND id=$2 RETURNING *`, [user.id, id]).then(res => res.rows[0]).catch(console.error)
         if(!res) return ctx.error("Unable to find user for the given handout")
 
-        const create = await ctx.sql.query("INSERT INTO freekeys (id, prize, channel_id) VALUES ($1, $2, $3) RETURNING *", [id, res.prize, res.channel_id]).then(res => res.rows[0]).catch(console.error)
+        const create = await ctx.sql.query("INSERT INTO freekeys (id, prize, channel_id, name) VALUES ($1, $2, $3, $4) RETURNING *", [id, res.prize, res.channel_id, res.name]).then(res => res.rows[0]).catch(console.error)
         if(!create) return ctx.error("Unable to reset key")
 
         return ctx.reply({

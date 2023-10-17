@@ -62,9 +62,10 @@ const keepAlive = async () => {
     //console.log(await connection.query("ALTER TABLE freekeys ADD received_at timestamp"))
     //console.log(await connection.query("ALTER TABLE freekeys ADD alert_send boolean not null default false"))
     //console.log(await connection.query("ALTER TABLE freekeys ADD proof_submitted_at timestamp"))
+    //console.log(await connection.query("ALTER TABLE freekeys ADD name text"))
     await connection.query("CREATE TABLE IF NOT EXISTS giveaways (id varchar(21) not null primary key, duration bigint not null, users text[] not null default '{}', won_users text[] default '{}', winners int not null, channel_id varchar(21) not null, rolled boolean not null, name VARCHAR(1000) NOT NULL DEFAULT '', prize_description VARCHAR(1000) NOT NULL DEFAULT '')")
     await connection.query("CREATE TABLE IF NOT EXISTS prizes (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), changed bigint)")
-    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text, received_at timestamp, alert_send boolean not null default false, proof_submitted_at timestamp)")
+    await connection.query("CREATE TABLE IF NOT EXISTS freekeys (index SERIAL, id varchar(21) not null, prize varchar(255) not null, user_id varchar(21), channel_id varchar(21) not null, proof_url text, received_at timestamp, alert_send boolean not null default false, proof_submitted_at timestamp, name text)")
 }
 
 const giveawayController = async () => {
@@ -133,12 +134,12 @@ if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
             }
     
             if(possible.rowCount === 1) {
-                await saveProofSubmission(possible.rows[0].id, possible.rows[0].channel_id, message.attachments.first()!)
+                await saveProofSubmission(possible.rows[0].id, possible.rows[0].channel_id, possible.rows[0].name, message.attachments.first()!)
                 return;
             }
     
             const components = []
-            const ids = possible.rows.map(r => r.id).slice()
+            const ids = possible.rows.map(r => ({id: r.id, name: r.name})).slice()
             if(ids.length > 125) {
                 await message.reply({content: "There are too many pending review proof submissions."})
                 return;
@@ -152,8 +153,8 @@ if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
                     components: [{
                         type: 3,
                         options: ids.splice(0, 25).map(r => ({
-                            label: `Handout ${++ind}`,
-                            value: `${r}`
+                            label: r.name || `Handout ${++ind}`,
+                            value: `${r.id}`
                         })).slice(0, 25),
                         placeholder: "Select a handout",
                         customId: `select_${ind}`
@@ -162,7 +163,7 @@ if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
             }
     
             const msg = await message.reply({
-                content: `Please select the handout you want to submit proof for\n${possible.rows.map((r, i) => `[Handout ${i+1}](https://discord.com/channels/${process.env["GUILD_ID"]}/${r.channel_id}/${r.id})`).join("\n")}`,
+                content: `Please select the handout you want to submit proof for\n${possible.rows.map((r, i) => `[${r.name || `Handout ${i+1}`}](https://discord.com/channels/${process.env["GUILD_ID"]}/${r.channel_id}/${r.id})`).join("\n")}`,
                 components
             })
     
@@ -178,9 +179,9 @@ if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
     
             const prize = possible.rows.find(r => r.id === selectinteraction.values[0])
     
-            await saveProofSubmission(prize.id, prize.channel_id, message.attachments.first()!)
+            await saveProofSubmission(prize.id, prize.channel_id, prize.name || "Unknown", message.attachments.first()!)
     
-            async function saveProofSubmission(id: string, channel_id: string, attachment: Attachment) {
+            async function saveProofSubmission(id: string, channel_id: string, name: string, attachment: Attachment) {
                 const logmsg = await client.log(`${message.author.username} (\`${message.author.id}\`) submitted proof of review \`${id}\``, [attachment], [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}])
                 if(!logmsg) return message.reply({content: "Unable to save image. Please try again later."})
                 const save = await connection.query("UPDATE freekeys SET proof_url=$1, proof_submitted_at=CURRENT_TIMESTAMP WHERE id=$2 AND user_id=$3", [logmsg.url, id, message.author.id]).catch(console.error)
