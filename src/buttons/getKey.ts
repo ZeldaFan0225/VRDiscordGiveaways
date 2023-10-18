@@ -25,7 +25,7 @@ export default class Test extends Button {
         if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] !== "1") return ctx.reply({content: `Here's a key: \`${prize.prize}\``})
         
         const msg = await ctx.interaction.user.send({
-            content: `Please send your proof of review for ${prize.name || "Unknown"} in this chat.`
+            content: `Please attach a SCREENSHOT of your review for ${prize.name || "Unknown"} to this chat.\nYour key is: \`${prize.prize}\``
         }).catch(console.error)
         ctx.reply({content: `Here's a key: \`${prize.prize}\`${!msg?.id ? '**Make sure to open your direct messages**' : ''}\n\n**Make sure to leave a review and send a screenshot as proof to this bot's direct messages**`, ephemeral: true})
 

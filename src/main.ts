@@ -187,7 +187,7 @@ if(process.env["ENABLE_REVIEW_PROOF_SUBMISION"] === "1") {
                 const save = await connection.query("UPDATE freekeys SET proof_url=$1, proof_submitted_at=CURRENT_TIMESTAMP WHERE id=$2 AND user_id=$3", [logmsg.url, id, message.author.id]).catch(console.error)
                 if(!save?.rowCount) return message.reply({content: "Unable to save proof submission. Please try again later."})
                 await message.reply({
-                    content: "Thank you for your submission of proof.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button on the handout message again.",
+                    content: `Thank you for reviewing ${name}.\nDo not delete your message else your submission will be invalid.\nTo check or remove your submission press the \"Click to get a Key\" button in the channel for ${name}.`,
                     components: [{type: 1, components: [{type: 2, label: "View Message", style: 5, url: `https://discord.com/channels/${process.env["GUILD_ID"]}/${channel_id}/${id}`}]}]
                 })
             }
